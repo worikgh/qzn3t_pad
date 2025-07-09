@@ -1,57 +1,129 @@
-name: Build
+name: Multi-Platform Build
 
+# Trigger the workflow when a new release is created
 on:
   release:
     types: [created]
 
+# Set permissions for the workflow to upload release assets
 permissions:
-  contents: write     # needed to upload assets
+  contents: write     # Allows writing to repository contents
 
+# Environment variables for the workflow
 env:
-  CARGO_TERM_COLOR: always
+  CARGO_TERM_COLOR: always  # Enables colored output in Cargo commands
 
+# Define the jobs to run
 jobs:
   build:
+    
+    # Use a strategy matrix to build for multiple platforms
     strategy:
       matrix:
         include:
+          # Linux x86_64 (static build with MUSL)
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
-            binary_name: qzn3t_pad-linux-static-x86_64
+            platform: linux-x86_64
+            packages: musl-tools musl-dev
+          
+          # Linux aarch64 (Raspberry Pi)
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            platform: linux-aarch64
+            packages: musl-tools musl-dev gcc-aarch64-linux-gnu
+          
+          # MacOS
           - os: macos-latest
             target: x86_64-apple-darwin
-            binary_name: qzn3t_pad-macos-x86_64
+            platform: macos-x86_64
+            packages: ""
 
+    # Run on the specified OS for each matrix configuration
     runs-on: ${{ matrix.os }}
 
     steps:
+    # Step 1: Check out the repository code
     - uses: actions/checkout@v4
     
-    - name: Install dependencies (Linux)
-      if: matrix.os == 'ubuntu-latest'
+    # Step 2: Cache Rust dependencies to speed up builds
+    - uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    # Step 3: Install cross-compilation dependencies
+    - name: Install dependencies
+      if: matrix.packages != ''
       run: |
-        sudo apt-get update
-        sudo apt-get install -y musl-tools musl-dev
+        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.packages }}
+        fi
         
-    - name: Add target
-      run: rustup target add ${{ matrix.target }}
+        # ARM64-specific packages
+        if [[ "${{ matrix.platform }}" == "linux-aarch64" ]]; then
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            sudo apt-get install -y binutils-aarch64-linux-gnu
+          fi
+        fi
+
+    # Step 4: Set up Rust toolchain and targets
+    - name: Setup Rust toolchain
+      run: |
+        rustup target add ${{ matrix.target }}
+        if [[ "${{ matrix.target }}" == *-musl ]]; then
+          rustup component add rust-std-${{ matrix.target }}
+        fi
         
-    - name: Build 
+    # Step 5: Set linker for aarch64 target
+    - name: Configure linker for aarch64
+      if: matrix.target == 'aarch64-unknown-linux-musl'
+      run: |
+        echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+    
+    # # Step 6: Run tests (optional)
+    # - name: Run tests
+    #   run: cargo test --release --target ${{ matrix.target }}
+
+    # - name: Install ARM64 strip tool
+    #   if: matrix.platform == 'linux-aarch64'
+    #   run: sudo apt-get update && sudo apt-get install -y binutils-aarch64-linux-gnu
+
+    # Step 7: Build the project for the specific target
+    - name: Build for ${{ matrix.platform }}
       run: cargo build --release --target ${{ matrix.target }}
       
-    - name: Package static binary
+    # Step 8: Prepare the binary for distribution
+    - name: Package binary
       run: |
         mkdir -p package
-        cp target/${{ matrix.target }}/release/qzn3t_pad package/
-        strip package/qzn3t_pad  # Optional: reduce binary size
-        tar czvf ${{ matrix.binary_name }}.tar.gz -C package .
+        cp target/${{ matrix.target }}/release/qzn3t_pad package/qzn3t_pad
         
-    - name: Upload file as release asset
+        # Strip debugging symbols (except on MacOS)
+        # if [[ "${{ matrix.platform }}" != "linux-x86_64" ]]; then
+        #   strip package/qzn3t_pad
+        # fi
+        
+        # Create appropriate archive
+        if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+          cd package
+          zip -r ../qzn3t_pad-macos-x86_64.zip .
+          cd ..
+        else
+          tar czvf qzn3t_pad-${{ matrix.platform }}.tar.gz -C package .
+        fi
+        
+    # Step 9: Upload the packaged binary as a release asset
+    - name: Upload release asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./${{ matrix.binary_name }}.tar.gz
-        asset_name: ${{ matrix.binary_name }}.tar.gz
-        asset_content_type: application/gzip
+        asset_path: qzn3t_pad-${{ matrix.platform }}.${{ matrix.os == 'macos-latest' && 'zip' || 'tar.gz' }}
+        asset_name: qzn3t_pad-${{ matrix.platform }}.${{ matrix.os == 'macos-latest' && 'zip' || 'tar.gz' }}
+        asset_content_type: ${{ matrix.os == 'macos-latest' && 'application/zip' || 'application/gzip' }}
