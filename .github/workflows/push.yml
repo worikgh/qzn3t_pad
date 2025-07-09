@@ -32,3 +32,13 @@ jobs:
         strip package/qzn3t_pad  # Optional: reduce binary size
         tar czvf qzn3t_pad-linux-static-x86_64.tar.gz -C package .
         
+    - name: Upload file as release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./qzn3t_pad-linux-static-x86_64.tar.gz
+        asset_name: qzn3t_pad-linux-static-x86_64.tar.gz
+        asset_content_type: application/gzip
+        
