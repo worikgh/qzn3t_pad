@@ -27,11 +27,14 @@ jobs:
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             platform: linux-aarch64
-            packages: gcc-aarch64-linux-gnu libasound2-dev:arm64 pkg-config
+            packages: gcc-aarch64-linux-gnu pkg-config
             linker: aarch64-linux-gnu-gcc
             rustflags: -C target-feature=+crt-static
             extra_install: |
+              sudo dpkg --add-architecture arm64
+              sudo apt-get update
               sudo apt-get install -y libasound2-dev:arm64
+              sudo mkdir -p /usr/lib/aarch64-linux-gnu
               sudo ln -s /usr/lib/aarch64-linux-gnu /usr/lib/aarch64-linux-gnu/lib
           
           # MacOS
@@ -74,9 +77,9 @@ jobs:
         echo "CARGO_TARGET_$(echo ${{ matrix.target }} | tr '[:lower:]' '[:upper:]' | tr '-' '_')_LINKER=${{ matrix.linker }}" >> $GITHUB_ENV
         echo "RUSTFLAGS=${{ matrix.rustflags }}" >> $GITHUB_ENV
         echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
-        # Set correct pkg-config path for cross-compilation
         if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
           echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+          echo "PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
           echo "PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
         else
           echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
