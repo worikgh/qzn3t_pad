@@ -27,16 +27,21 @@ jobs:
         profile: minimal
         override: true
 
-    - name: Install cross-compiler
+    - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-aarch64-linux-gnu
+        sudo apt-get install -y \
+          gcc-aarch64-linux-gnu \
+          libasound2-dev
 
     - name: Configure Cargo
       run: |
         mkdir -p $HOME/.cargo
         echo "[target.${{ env.TARGET }}]" > $HOME/.cargo/config.toml
         echo 'linker = "aarch64-linux-gnu-gcc"' >> $HOME/.cargo/config.toml
+        # Set PKG_CONFIG_PATH for cross-compilation
+        echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
+        echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
 
     # Cache Rust dependencies
     - name: Cache cargo registry
@@ -58,6 +63,9 @@ jobs:
       with:
         command: build
         args: --release --target ${{ env.TARGET }}
+      env:
+        PKG_CONFIG_ALLOW_CROSS: 1
+        PKG_CONFIG_PATH: /usr/lib/aarch64-linux-gnu/pkgconfig
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
