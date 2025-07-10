@@ -30,7 +30,7 @@ jobs:
         echo 'linker = "aarch64-linux-gnu-gcc"' >> $HOME/.cargo/config.toml
         
     - name: Build with cross
-      uses: rust-build/rust-build-action@v1.4.5
+      uses: rust-build/rust-build.action@v1.4.5
       with:
         toolchain: stable
         target: ${{ env.TARGET }}
