@@ -16,18 +16,18 @@ jobs:
       matrix:
         include:
           # Linux x86_64 (static build with Glibc)
-          - os: ubuntu-22.04  # Changed to Jammy
+          - os: debian-12
             target: x86_64-unknown-linux-gnu
             platform: linux-x86_64
-            packages: gcc-multilib libasound2-dev pkg-config
+            packages: gcc libasound2-dev pkg-config
             linker: x86_64-linux-gnu-gcc
             rustflags: -C target-feature=+crt-static
           
           # Linux aarch64 (Raspberry Pi)
-          - os: ubuntu-22.04  # Changed to Jammy
+          - os: debian-12
             target: aarch64-unknown-linux-gnu
             platform: linux-aarch64
-            packages: gcc-aarch64-linux-gnu libasound2-dev:arm64 pkg-config
+            packages: gcc-aarch64-linux-gnu pkg-config
             linker: aarch64-linux-gnu-gcc
             rustflags: -C target-feature=+crt-static
             extra_install: |
@@ -37,7 +37,7 @@ jobs:
               sudo mkdir -p /usr/lib/aarch64-linux-gnu
               sudo ln -s /usr/lib/aarch64-linux-gnu /usr/lib/aarch64-linux-gnu/lib
           
-          # MacOS
+          # MacOS (kept as-is)
           - os: macos-latest
             target: x86_64-apple-darwin
             platform: macos-x86_64
@@ -58,7 +58,7 @@ jobs:
     
     - name: Install dependencies
       run: |
-        if [[ "${{ matrix.os }}" == "ubuntu-22.04" ]]; then
+        if [[ "${{ matrix.os }}" == "debian-12" ]]; then
           sudo apt-get update
           sudo apt-get install -y ${{ matrix.packages }}
           ${{ matrix.extra_install || 'echo "No extra install steps"' }}
