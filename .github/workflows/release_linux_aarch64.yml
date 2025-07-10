@@ -29,21 +29,21 @@ jobs:
         echo "[target.${{ env.TARGET }}]" > $HOME/.cargo/config.toml
         echo 'linker = "aarch64-linux-gnu-gcc"' >> $HOME/.cargo/config.toml
         
-    - name: Build with cross
+    # - name: Build with cross
+    #   uses: rust-build/rust-build.action@v1.4.5
+    #   with:
+    #     toolchain: stable
+    #     target: ${{ env.TARGET }}
+    #     use-cross: true
+    #     build-command: build --release
+    
+    - name: Build with rust-build.action
       uses: rust-build/rust-build.action@v1.4.5
       with:
         toolchain: stable
         target: ${{ env.TARGET }}
-        use-cross: true
         build-command: build --release
-    
-    # - name: Build with rust-build-action
-    #   uses: rust-build/rust-build-action@v1
-    #   with:
-    #     toolchain: stable
-    #     target: ${{ env.TARGET }}
-    #     build-command: build --release
-    #     use-cross: false  
+        use-cross: false  
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
