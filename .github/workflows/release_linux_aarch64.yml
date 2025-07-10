@@ -43,7 +43,7 @@ jobs:
         toolchain: stable
         target: ${{ env.TARGET }}
         build-command: build --release
-        use-cross: false  
+        # use-cross: false  
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
