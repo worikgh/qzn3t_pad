@@ -21,24 +21,27 @@ jobs:
     strategy:
       matrix:
         include:
-          # Linux x86_64 (static build with MUSL)
+          # Linux x86_64 (static build with Glibc)
           - os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
+            target: x86_64-unknown-linux-gnu
             platform: linux-x86_64
-            packages: musl-tools musl-dev alsa-utils libasound2-dev pkg-config
+            packages: gcc-multilib alsa-utils libasound2-dev pkg-config
+            linker: x86_64-linux-gnu-gcc
+            rustflags: '-C target-feature=+crt-static'
           
           # Linux aarch64 (Raspberry Pi)
           - os: ubuntu-latest
-            target: aarch64-unknown-linux-musl
+            target: aarch64-unknown-linux-gnu
             platform: linux-aarch64
-            packages: musl-tools musl-dev gcc-aarch64-linux-gnu alsa-utils libasound2-dev pkg-config
+            packages: gcc-aarch64-linux-gnu alsa-utils libasound2-dev pkg-config
+            linker: aarch64-linux-gnu-gcc
+            rustflags: '-C target-feature=+crt-static'
           
           # MacOS
           - os: macos-latest
             target: x86_64-apple-darwin
             platform: macos-x86_64
             packages: ""
-
           
           # Windows (cross-compiled from Linux)
           - os: ubuntu-latest
@@ -70,54 +73,29 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ${{ matrix.packages }}
         fi
-        
-        # ARM64-specific packages
-        if [[ "${{ matrix.platform }}" == "linux-aarch64" ]]; then
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            sudo apt-get install -y binutils-aarch64-linux-gnu
-          fi
-        fi
 
     # Step 4: Set up Rust toolchain and targets
     - name: Setup Rust toolchain
       run: |
         rustup target add ${{ matrix.target }}
-        if [[ "${{ matrix.target }}" == *-musl ]]; then
+        if [[ "${{ matrix.target }}" == *-gnu ]]; then
           rustup component add rust-std-${{ matrix.target }}
         fi
 
-    # Step INSERTED: Configure linker and pkg-config for MUSL targets
-    - name: Configure build environment for MUSL
-      if: contains(matrix.target, 'linux-musl')
+    # Step 5: Configure build environment for static linking
+    - name: Configure build environment
+      if: contains(matrix.target, 'linux-gnu')
       run: |
-        # For aarch64, set the linker
-        if [[ "${{ matrix.target }}" == 'aarch64-unknown-linux-musl' ]]; then
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-        fi
-        
-        # Set pkg-config for cross-compilation
+        echo "CARGO_TARGET_$(echo ${{ matrix.target }} | tr '[:lower:]' '[:upper:]' | tr '-' '_')_LINKER=${{ matrix.linker }}" >> $GITHUB_ENV
+        echo "RUSTFLAGS='${{ matrix.rustflags }}'" >> $GITHUB_ENV
         echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
-        echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV        
+        echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
 
-    # Step 5: Set linker for aarch64 target
-    - name: Configure linker for aarch64
-      if: matrix.target == 'aarch64-unknown-linux-musl'
-      run: |
-        echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-    
-    # # Step 6: Run tests (optional)
-    # - name: Run tests
-    #   run: cargo test --release --target ${{ matrix.target }}
-
-    # - name: Install ARM64 strip tool
-    #   if: matrix.platform == 'linux-aarch64'
-    #   run: sudo apt-get update && sudo apt-get install -y binutils-aarch64-linux-gnu
-
-    # Step 7: Build the project for the specific target
+    # Step 6: Build the project for the specific target
     - name: Build for ${{ matrix.platform }}
       run: cargo build --release --target ${{ matrix.target }}
       
-    # Step 8: Prepare the binary for distribution
+    # Step 7: Prepare the binary for distribution
     - name: Package binary
       run: |
         mkdir -p package
@@ -128,11 +106,6 @@ jobs:
         
         cp target/${{ matrix.target }}/release/$binary_name package/
         
-        # Strip debugging symbols (except on MacOS)
-        # if [[ "${{ matrix.platform }}" != "linux-x86_64" ]]; then
-        #   strip package/qzn3t_pad
-        # fi
-        
         # Create appropriate archive
         if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
           cd package
@@ -141,13 +114,12 @@ jobs:
         elif [[ "${{ matrix.target }}" == *"windows"* ]]; then
           cd package
           zip -r ../qzn3t_pad-windows-x86_64.zip .
-
           cd ..
         else
           tar czvf qzn3t_pad-${{ matrix.platform }}.tar.gz -C package .
         fi
         
-    # Step 9: Upload the packaged binary as a release asset
+    # Step 8: Upload the packaged binary as a release asset
     - name: Upload release asset
       uses: actions/upload-release-asset@v1
       env:
@@ -157,4 +129,3 @@ jobs:
         asset_path: qzn3t_pad-${{ matrix.platform }}.${{ matrix.target == 'x86_64-pc-windows-gnu' && 'zip' || matrix.os == 'macos-latest' && 'zip' || 'tar.gz' }}
         asset_name: qzn3t_pad-${{ matrix.platform }}.${{ matrix.target == 'x86_64-pc-windows-gnu' && 'zip' || matrix.os == 'macos-latest' && 'zip' || 'tar.gz' }}
         asset_content_type: ${{ matrix.target == 'x86_64-pc-windows-gnu' && 'application/zip' || matrix.os == 'macos-latest' && 'application/zip' || 'application/gzip' }}
-
