@@ -15,27 +15,23 @@ jobs:
     strategy:
       matrix:
         include:
-          # Linux x86_64 (static build with Glibc)
+          # Linux x86_64 (static build with musl)
           - os: debian-12
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux-musl
             platform: linux-x86_64
-            packages: gcc libasound2-dev pkg-config
-            linker: x86_64-linux-gnu-gcc
+            packages: musl-tools
             rustflags: -C target-feature=+crt-static
           
-          # Linux aarch64 (Raspberry Pi)
+          # Linux aarch64 (static build with musl)
           - os: debian-12
-            target: aarch64-unknown-linux-gnu
+            target: aarch64-unknown-linux-musl
             platform: linux-aarch64
-            packages: gcc-aarch64-linux-gnu pkg-config
-            linker: aarch64-linux-gnu-gcc
+            packages: gcc-aarch64-linux-gnu musl-dev musl-tools
             rustflags: -C target-feature=+crt-static
             extra_install: |
               sudo dpkg --add-architecture arm64
               sudo apt-get update
               sudo apt-get install -y libasound2-dev:arm64
-              sudo mkdir -p /usr/lib/aarch64-linux-gnu
-              sudo ln -s /usr/lib/aarch64-linux-gnu /usr/lib/aarch64-linux-gnu/lib
           
           # MacOS (kept as-is)
           - os: macos-latest
@@ -67,22 +63,20 @@ jobs:
     - name: Setup Rust toolchain
       run: |
         rustup target add ${{ matrix.target }}
-        if [[ "${{ matrix.target }}" == *-gnu ]]; then
+        if [[ "${{ matrix.target }}" == *-musl ]]; then
           rustup component add rust-std-${{ matrix.target }}
         fi
 
     - name: Configure build environment
-      if: contains(matrix.target, 'linux-gnu')
+      if: contains(matrix.target, 'linux-musl')
       run: |
-        echo "CARGO_TARGET_$(echo ${{ matrix.target }} | tr '[:lower:]' '[:upper:]' | tr '-' '_')_LINKER=${{ matrix.linker }}" >> $GITHUB_ENV
         echo "RUSTFLAGS=${{ matrix.rustflags }}" >> $GITHUB_ENV
         echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
-        if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
-          echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
-          echo "PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
-          echo "PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+        if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-musl" ]]; then
+          echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "AR=aarch64-linux-gnu-ar" >> $GITHUB_ENV
         else
-          echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+          echo "CC=musl-gcc" >> $GITHUB_ENV
         fi
 
     - name: Build for ${{ matrix.platform }}
