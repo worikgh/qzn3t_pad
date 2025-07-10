@@ -40,10 +40,9 @@ jobs:
     - name: Build with rust-build.action
       uses: rust-build/rust-build.action@v1.4.5
       with:
-        toolchain: stable
-        target: ${{ env.TARGET }}
-        build-command: build --release
-        # use-cross: false  
+        TOOLCHAIN_VERSION: stable
+        RUSTTARGET: ${{ env.TARGET }}
+        EXTRA_COMMAND_FLAGS: --release
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
