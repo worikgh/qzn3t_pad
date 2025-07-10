@@ -1,0 +1,65 @@
+name: Linux aarch64 Build (musl)
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: debian-12
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: linux-aarch64-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-aarch64-linux-gnu musl-dev musl-tools
+        sudo dpkg --add-architecture arm64
+        sudo apt-get update
+        sudo apt-get install -y libasound2-dev:arm64
+
+    - name: Setup Rust toolchain
+      run: |
+        rustup target add aarch64-unknown-linux-musl
+        rustup component add rust-std-aarch64-unknown-linux-musl
+
+    - name: Configure build environment
+      run: |
+        echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
+        echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+        echo "AR=aarch64-linux-gnu-ar" >> $GITHUB_ENV
+
+    - name: Build for linux-aarch64
+      run: cargo build --release --target aarch64-unknown-linux-musl
+      
+    - name: Package binary
+      run: |
+        mkdir -p package
+        binary_name="qzn3t_pad"
+        cp target/aarch64-unknown-linux-musl/release/$binary_name package/
+        tar czvf qzn3t_pad-linux-aarch64.tar.gz -C package .
+        
+    - name: Upload release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: qzn3t_pad-linux-aarch64.tar.gz
+        asset_name: qzn3t_pad-linux-aarch64.tar.gz
+        asset_content_type: application/gzip
