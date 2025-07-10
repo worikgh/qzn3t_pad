@@ -1,23 +1,17 @@
 name: Multi-Platform Build
 
-# Trigger the workflow when a new release is created
 on:
   release:
     types: [created]
 
-# Set permissions for the workflow to upload release assets
 permissions:
-  contents: write     # Allows writing to repository contents
+  contents: write
 
-# Environment variables for the workflow
 env:
-  CARGO_TERM_COLOR: always  # Enables colored output in Cargo commands
+  CARGO_TERM_COLOR: always
 
-# Define the jobs to run
 jobs:
   build:
-    
-    # Use a strategy matrix to build for multiple platforms
     strategy:
       matrix:
         include:
@@ -27,7 +21,7 @@ jobs:
             platform: linux-x86_64
             packages: gcc-multilib alsa-utils libasound2-dev pkg-config
             linker: x86_64-linux-gnu-gcc
-            rustflags: '-C target-feature=+crt-static'
+            rustflags: -C target-feature=+crt-static
           
           # Linux aarch64 (Raspberry Pi)
           - os: ubuntu-latest
@@ -35,7 +29,7 @@ jobs:
             platform: linux-aarch64
             packages: gcc-aarch64-linux-gnu alsa-utils libasound2-dev pkg-config
             linker: aarch64-linux-gnu-gcc
-            rustflags: '-C target-feature=+crt-static'
+            rustflags: -C target-feature=+crt-static
           
           # MacOS
           - os: macos-latest
@@ -43,21 +37,11 @@ jobs:
             platform: macos-x86_64
             packages: ""
 
-            ## Turns out midir cannot do virtual MIDI ports on Windows
-          # # Windows (cross-compiled from Linux)
-          # - os: ubuntu-latest
-          #   target: x86_64-pc-windows-gnu
-          #   platform: windows-x86_64
-          #   packages: mingw-w64
-
-    # Run on the specified OS for each matrix configuration
     runs-on: ${{ matrix.os }}
 
     steps:
-    # Step 1: Check out the repository code
     - uses: actions/checkout@v4
     
-    # Step 2: Cache Rust dependencies to speed up builds
     - uses: actions/cache@v3
       with:
         path: |
@@ -66,7 +50,6 @@ jobs:
           target
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     
-    # Step 3: Install cross-compilation dependencies
     - name: Install dependencies
       if: matrix.packages != ''
       run: |
@@ -75,7 +58,6 @@ jobs:
           sudo apt-get install -y ${{ matrix.packages }}
         fi
 
-    # Step 4: Set up Rust toolchain and targets
     - name: Setup Rust toolchain
       run: |
         rustup target add ${{ matrix.target }}
@@ -83,50 +65,37 @@ jobs:
           rustup component add rust-std-${{ matrix.target }}
         fi
 
-    # Step 5: Configure build environment for static linking
     - name: Configure build environment
       if: contains(matrix.target, 'linux-gnu')
       run: |
         echo "CARGO_TARGET_$(echo ${{ matrix.target }} | tr '[:lower:]' '[:upper:]' | tr '-' '_')_LINKER=${{ matrix.linker }}" >> $GITHUB_ENV
-        echo "RUSTFLAGS='${{ matrix.rustflags }}'" >> $GITHUB_ENV
+        echo "RUSTFLAGS=${{ matrix.rustflags }}" >> $GITHUB_ENV
         echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
         echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
 
-    # Step 6: Build the project for the specific target
     - name: Build for ${{ matrix.platform }}
       run: cargo build --release --target ${{ matrix.target }}
       
-    # Step 7: Prepare the binary for distribution
     - name: Package binary
       run: |
         mkdir -p package
         binary_name="qzn3t_pad"
-        if [[ "${{ matrix.target }}" == *"windows"* ]]; then
-          binary_name="${binary_name}.exe"
-        fi
-        
         cp target/${{ matrix.target }}/release/$binary_name package/
         
-        # Create appropriate archive
         if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
           cd package
           zip -r ../qzn3t_pad-macos-x86_64.zip .
-          cd ..
-        elif [[ "${{ matrix.target }}" == *"windows"* ]]; then
-          cd package
-          zip -r ../qzn3t_pad-windows-x86_64.zip .
           cd ..
         else
           tar czvf qzn3t_pad-${{ matrix.platform }}.tar.gz -C package .
         fi
         
-    # Step 8: Upload the packaged binary as a release asset
     - name: Upload release asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ github.event.release.upload_url }}
-        asset_path: qzn3t_pad-${{ matrix.platform }}.${{ matrix.target == 'x86_64-pc-windows-gnu' && 'zip' || matrix.os == 'macos-latest' && 'zip' || 'tar.gz' }}
-        asset_name: qzn3t_pad-${{ matrix.platform }}.${{ matrix.target == 'x86_64-pc-windows-gnu' && 'zip' || matrix.os == 'macos-latest' && 'zip' || 'tar.gz' }}
-        asset_content_type: ${{ matrix.target == 'x86_64-pc-windows-gnu' && 'application/zip' || matrix.os == 'macos-latest' && 'application/zip' || 'application/gzip' }}
+        asset_path: qzn3t_pad-${{ matrix.platform }}.${{ matrix.os == 'macos-latest' && 'zip' || 'tar.gz' }}
+        asset_name: qzn3t_pad-${{ matrix.platform }}.${{ matrix.os == 'macos-latest' && 'zip' || 'tar.gz' }}
+        asset_content_type: ${{ matrix.os == 'macos-latest' && 'application/zip' || 'application/gzip' }}
