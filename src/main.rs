@@ -12,6 +12,7 @@ extern crate serde;
 mod section;
 
 use crate::midir::os::unix::VirtualOutput;
+use crate::section::default_sections;
 use crate::section::Section;
 use midir::{MidiInput, MidiInputConnection, MidiOutput, MidiOutputConnection};
 use std::env;
@@ -102,13 +103,22 @@ fn get_midi_in(
 fn main() -> Result<(), Box<dyn Error>> {
     // The only argument is a configuration file
     let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        panic!("Pass name of pad definitions, JSON formatted, file as sole argument");
-    }
-    let filename = &args[1];
 
     // Initialise the collection of `Section` from the file. (See `section.rs`)
-    let sections: Vec<Section> = load_sections(filename).expect("Failed to load sections");
+    let sections: Vec<Section> = match args.len() {
+        1 =>
+        // No arguments
+        {
+            default_sections()
+        }
+        2 =>
+        // one argument
+        {
+            load_sections(args[1].as_str()).expect("Failed to load sections")
+        }
+        // TODO: User friendly guidence...
+        _ => panic!["Invalid arguments"],
+    };
 
     // The channel to send MIDI messages, received from the LPX in the
     // MidiInputConnection, here to the main thread

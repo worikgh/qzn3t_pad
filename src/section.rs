@@ -147,6 +147,75 @@ impl Section {
     }
 }
 
+pub fn default_sections() -> Vec<Section> {
+    vec![
+        Section {
+            pads: vec![
+                11, 12, 13, 14, 21, 22, 23, 24, 31, 32, 33, 34, 41, 42, 43, 44,
+            ],
+            main_colour: [127, 0, 0],
+            active_colour: [0, 127, 127],
+            midi_note: 33,
+        },
+        Section {
+            pads: vec![77, 78, 87, 88],
+            main_colour: [127, 0, 64],
+            active_colour: [0, 127, 63],
+            midi_note: 42,
+        },
+        Section {
+            pads: vec![
+                15, 16, 17, 18, 25, 26, 27, 28, 35, 36, 37, 38, 45, 46, 47, 48,
+            ],
+            main_colour: [127, 32, 0],
+            active_colour: [0, 95, 127],
+            midi_note: 34,
+        },
+        Section {
+            pads: vec![51, 52, 61, 62],
+            main_colour: [127, 96, 0],
+            active_colour: [0, 31, 127],
+            midi_note: 35,
+        },
+        Section {
+            pads: vec![53, 54, 63, 64],
+            main_colour: [32, 127, 0],
+            active_colour: [95, 0, 127],
+            midi_note: 36,
+        },
+        Section {
+            pads: vec![55, 56, 65, 66],
+            main_colour: [0, 127, 32],
+            active_colour: [127, 0, 95],
+            midi_note: 37,
+        },
+        Section {
+            pads: vec![57, 58, 67, 68],
+            main_colour: [32, 0, 64],
+            active_colour: [95, 127, 63],
+            midi_note: 38,
+        },
+        Section {
+            pads: vec![71, 72, 81, 82],
+            main_colour: [96, 64, 64],
+            active_colour: [31, 63, 63],
+            midi_note: 39,
+        },
+        Section {
+            pads: vec![73, 74, 83, 84],
+            main_colour: [96, 32, 0],
+            active_colour: [31, 95, 127],
+            midi_note: 40,
+        },
+        Section {
+            pads: vec![75, 76, 85, 86],
+            main_colour: [0, 0, 127],
+            active_colour: [127, 127, 0],
+            midi_note: 41,
+        },
+    ]
+}
+
 use std::fmt;
 #[allow(unused)]
 impl fmt::Display for Section {
