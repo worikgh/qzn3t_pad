@@ -19,7 +19,7 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             platform: linux-x86_64
-            packages: gcc-multilib alsa-utils libasound2-dev pkg-config
+            packages: gcc-multilib libasound2-dev pkg-config
             linker: x86_64-linux-gnu-gcc
             rustflags: -C target-feature=+crt-static
           
@@ -27,9 +27,12 @@ jobs:
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             platform: linux-aarch64
-            packages: gcc-aarch64-linux-gnu alsa-utils libasound2-dev pkg-config
+            packages: gcc-aarch64-linux-gnu libasound2-dev:arm64 pkg-config
             linker: aarch64-linux-gnu-gcc
             rustflags: -C target-feature=+crt-static
+            extra_install: |
+              sudo apt-get install -y libasound2-dev:arm64
+              sudo ln -s /usr/lib/aarch64-linux-gnu /usr/lib/aarch64-linux-gnu/lib
           
           # MacOS
           - os: macos-latest
@@ -51,11 +54,11 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     
     - name: Install dependencies
-      if: matrix.packages != ''
       run: |
         if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
           sudo apt-get update
           sudo apt-get install -y ${{ matrix.packages }}
+          ${{ matrix.extra_install || 'echo "No extra install steps"' }}
         fi
 
     - name: Setup Rust toolchain
@@ -71,7 +74,13 @@ jobs:
         echo "CARGO_TARGET_$(echo ${{ matrix.target }} | tr '[:lower:]' '[:upper:]' | tr '-' '_')_LINKER=${{ matrix.linker }}" >> $GITHUB_ENV
         echo "RUSTFLAGS=${{ matrix.rustflags }}" >> $GITHUB_ENV
         echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
-        echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+        # Set correct pkg-config path for cross-compilation
+        if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
+          echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+          echo "PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+        else
+          echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+        fi
 
     - name: Build for ${{ matrix.platform }}
       run: cargo build --release --target ${{ matrix.target }}
