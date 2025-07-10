@@ -42,12 +42,13 @@ jobs:
             target: x86_64-apple-darwin
             platform: macos-x86_64
             packages: ""
-          
-          # Windows (cross-compiled from Linux)
-          - os: ubuntu-latest
-            target: x86_64-pc-windows-gnu
-            platform: windows-x86_64
-            packages: mingw-w64
+
+            ## Turns out midir cannot do virtual MIDI ports on Windows
+          # # Windows (cross-compiled from Linux)
+          # - os: ubuntu-latest
+          #   target: x86_64-pc-windows-gnu
+          #   platform: windows-x86_64
+          #   packages: mingw-w64
 
     # Run on the specified OS for each matrix configuration
     runs-on: ${{ matrix.os }}
