@@ -39,6 +39,13 @@ jobs:
             platform: macos-x86_64
             packages: ""
 
+          
+          # Windows (cross-compiled from Linux)
+          - os: ubuntu-latest
+            target: x86_64-pc-windows-gnu
+            platform: windows-x86_64
+            packages: mingw-w64
+
     # Run on the specified OS for each matrix configuration
     runs-on: ${{ matrix.os }}
 
@@ -101,7 +108,12 @@ jobs:
     - name: Package binary
       run: |
         mkdir -p package
-        cp target/${{ matrix.target }}/release/qzn3t_pad package/qzn3t_pad
+        binary_name="qzn3t_pad"
+        if [[ "${{ matrix.target }}" == *"windows"* ]]; then
+          binary_name="${binary_name}.exe"
+        fi
+        
+        cp target/${{ matrix.target }}/release/$binary_name package/
         
         # Strip debugging symbols (except on MacOS)
         # if [[ "${{ matrix.platform }}" != "linux-x86_64" ]]; then
@@ -112,6 +124,11 @@ jobs:
         if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
           cd package
           zip -r ../qzn3t_pad-macos-x86_64.zip .
+          cd ..
+        elif [[ "${{ matrix.target }}" == *"windows"* ]]; then
+          cd package
+          zip -r ../qzn3t_pad-windows-x86_64.zip .
+
           cd ..
         else
           tar czvf qzn3t_pad-${{ matrix.platform }}.tar.gz -C package .
@@ -124,6 +141,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ github.event.release.upload_url }}
-        asset_path: qzn3t_pad-${{ matrix.platform }}.${{ matrix.os == 'macos-latest' && 'zip' || 'tar.gz' }}
-        asset_name: qzn3t_pad-${{ matrix.platform }}.${{ matrix.os == 'macos-latest' && 'zip' || 'tar.gz' }}
-        asset_content_type: ${{ matrix.os == 'macos-latest' && 'application/zip' || 'application/gzip' }}
+        asset_path: qzn3t_pad-${{ matrix.platform }}.${{ matrix.target == 'x86_64-pc-windows-gnu' && 'zip' || matrix.os == 'macos-latest' && 'zip' || 'tar.gz' }}
+        asset_name: qzn3t_pad-${{ matrix.platform }}.${{ matrix.target == 'x86_64-pc-windows-gnu' && 'zip' || matrix.os == 'macos-latest' && 'zip' || 'tar.gz' }}
+        asset_content_type: ${{ matrix.target == 'x86_64-pc-windows-gnu' && 'application/zip' || matrix.os == 'macos-latest' && 'application/zip' || 'application/gzip' }}
+
