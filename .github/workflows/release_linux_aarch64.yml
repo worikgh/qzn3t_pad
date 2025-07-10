@@ -12,13 +12,12 @@ env:
 jobs:
   build_aarch64:
     name: Build for Raspberry Pi 5
-    runs-on: ubuntu-latest
+    runs-on: debian-12  # Not ubuntu-latest
     
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # Install Rust using modern approach
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
@@ -33,9 +32,6 @@ jobs:
           crossbuild-essential-arm64 \
           libasound2-dev:arm64 \
           pkg-config
-        
-        # Verify pkg-config setup
-        aarch64-linux-gnu-pkg-config --list-all
 
     - name: Configure Cargo
       run: |
@@ -50,7 +46,6 @@ jobs:
         echo "PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
         echo "RUSTFLAGS=-C linker=aarch64-linux-gnu-gcc -C link-arg=-L/usr/lib/aarch64-linux-gnu -C link-arg=-Wl,-rpath-link=/usr/aarch64-linux-gnu/lib" >> $GITHUB_ENV
 
-    # Cache only cross-compilation artifacts
     - name: Cache cargo registry
       uses: actions/cache@v3
       with:
@@ -71,6 +66,12 @@ jobs:
         PKG_CONFIG_PATH: /usr/lib/aarch64-linux-gnu/pkgconfig
         PKG_CONFIG_SYSROOT_DIR: /usr/aarch64-linux-gnu
         RUSTFLAGS: "-C linker=aarch64-linux-gnu-gcc -C link-arg=-L/usr/lib/aarch64-linux-gnu -C link-arg=-Wl,-rpath-link=/usr/aarch64-linux-gnu/lib"
+
+    - name: Verify binary
+      run: file target/${{ env.TARGET }}/release/${{ env.BINARY_NAME }}
+
+    # - name: Strip binary (optional)
+    #   run: aarch64-linux-gnu-strip target/${{ env.TARGET }}/release/${{ env.BINARY_NAME }}
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
