@@ -18,43 +18,39 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # Install Rust using rustup
+    # Install Rust using modern approach
     - name: Install Rust
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: stable
-        target: ${{ env.TARGET }}
-        profile: minimal
-        override: true
+        targets: ${{ env.TARGET }}
 
     - name: Install dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          gcc-aarch64-linux-gnu \
-          libasound2-dev \
-          libasound2 \
-          pkg-config \
-          crossbuild-essential-arm64
-        
-        # Install ARM64 libraries
         sudo dpkg --add-architecture arm64
         sudo apt-get update
         sudo apt-get install -y \
+          gcc-aarch64-linux-gnu \
+          crossbuild-essential-arm64 \
           libasound2-dev:arm64 \
-          libasound2:arm64
+          pkg-config
+        
+        # Verify pkg-config setup
+        aarch64-linux-gnu-pkg-config --list-all
 
     - name: Configure Cargo
       run: |
         mkdir -p $HOME/.cargo
-        echo "[target.${{ env.TARGET }}]" > $HOME/.cargo/config.toml
-        echo 'linker = "aarch64-linux-gnu-gcc"' >> $HOME/.cargo/config.toml
+        cat > $HOME/.cargo/config.toml <<EOF
+        [target.${{ env.TARGET }}]
+        linker = "aarch64-linux-gnu-gcc"
+        EOF
+        
         echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
         echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
         echo "PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
-        echo "RUSTFLAGS=-C linker=aarch64-linux-gnu-gcc -C link-arg=-L/usr/lib/aarch64-linux-gnu" >> $GITHUB_ENV
+        echo "RUSTFLAGS=-C linker=aarch64-linux-gnu-gcc -C link-arg=-L/usr/lib/aarch64-linux-gnu -C link-arg=-Wl,-rpath-link=/usr/aarch64-linux-gnu/lib" >> $GITHUB_ENV
 
-    # Cache Rust dependencies
+    # Cache only cross-compilation artifacts
     - name: Cache cargo registry
       uses: actions/cache@v3
       with:
@@ -63,17 +59,13 @@ jobs:
           ~/.cargo/git
           target/${{ env.TARGET }}/release/.fingerprint
           target/${{ env.TARGET }}/release/build
-          target/release/.fingerprint
-          target/release/build
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ env.TARGET }}
         restore-keys: |
+          ${{ runner.os }}-cargo-${{ env.TARGET }}-
           ${{ runner.os }}-cargo-
 
     - name: Build
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --release --target ${{ env.TARGET }}
+      run: cargo build --release --target ${{ env.TARGET }}
       env:
         PKG_CONFIG_ALLOW_CROSS: 1
         PKG_CONFIG_PATH: /usr/lib/aarch64-linux-gnu/pkgconfig
