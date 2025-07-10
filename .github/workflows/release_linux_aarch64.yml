@@ -28,15 +28,31 @@ jobs:
         mkdir -p $HOME/.cargo
         echo "[target.${{ env.TARGET }}]" > $HOME/.cargo/config.toml
         echo 'linker = "aarch64-linux-gnu-gcc"' >> $HOME/.cargo/config.toml
-        
-    # - name: Build with cross
-    #   uses: rust-build/rust-build.action@v1.4.5
-    #   with:
-    #     toolchain: stable
-    #     target: ${{ env.TARGET }}
-    #     use-cross: true
-    #     build-command: build --release
-    
+
+    # Cache Rust dependencies
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target/${{ env.TARGET }}/release/.fingerprint
+          target/${{ env.TARGET }}/release/build
+          target/release/.fingerprint
+          target/release/build
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    # Cache Rust toolchain (if you want to cache the toolchain installation)
+    - name: Cache Rust toolchain
+      uses: actions/cache@v3
+      with:
+        path: ~/.rustup
+        key: ${{ runner.os }}-rustup-${{ env.TARGET }}
+        restore-keys: |
+          ${{ runner.os }}-rustup-
+
     - name: Build with rust-build.action
       uses: rust-build/rust-build.action@v1.4.5
       with:
