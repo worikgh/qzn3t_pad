@@ -14,11 +14,14 @@ mod section;
 use crate::midir::os::unix::VirtualOutput;
 use crate::section::default_sections;
 use crate::section::Section;
+use midir::MidiInputPort;
+use midir::MidiOutputPort;
 use midir::{MidiInput, MidiInputConnection, MidiOutput, MidiOutputConnection};
 use std::env;
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
+use std::process::exit;
 use std::result::Result;
 use std::sync::mpsc::{self, Receiver, Sender};
 
@@ -100,6 +103,37 @@ fn get_midi_in(
     Ok(result)
 }
 
+/// Get all MIDI Ports.
+fn get_all_midi_input_ports() -> Result<Vec<String>, Box<dyn Error>> {
+    let input = MidiInput::new("foo")?;
+    let ports: Vec<MidiInputPort> = input.ports();
+    let mut result: Vec<String> = vec![];
+    for p in ports {
+        result.push(input.port_name(&p)?);
+    }
+    // let result: Vec<String> = ports
+    //     .iter()
+    //     .map(|p| {
+    //         let name = input.port_name(p).expect("Getting port name");
+    //         Ok(name)
+    //     })
+    //     .collect();
+    // ports
+    //     .iter()
+    //     .map(|p| input.port_name(p))
+    //     .collect::<Vec<String>>()?
+    Ok(result)
+}
+fn get_all_midi_output_ports() -> Result<Vec<String>, Box<dyn Error>> {
+    let output = MidiOutput::new("foo")?;
+    let ports: Vec<MidiOutputPort> = output.ports();
+    let mut result: Vec<String> = vec![];
+    for p in ports {
+        result.push(output.port_name(&p)?);
+    }
+    Ok(result)
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     // The only argument is a configuration file
     let args: Vec<String> = env::args().collect();
@@ -114,7 +148,23 @@ fn main() -> Result<(), Box<dyn Error>> {
         2 =>
         // one argument
         {
-            load_sections(args[1].as_str()).expect("Failed to load sections")
+            let arg = args[1].as_str();
+            match arg {
+                "--list" | "-l" => {
+                    println!("Input ports:");
+                    let ports = get_all_midi_input_ports()?;
+                    for port_name in ports {
+                        println!("\t{port_name}");
+                    }
+                    println!("Output ports:");
+                    let ports = get_all_midi_output_ports()?;
+                    for port_name in ports {
+                        println!("\t{port_name}");
+                    }
+                    exit(0)
+                }
+                _ => load_sections(args[1].as_str()).expect("Failed to load sections"),
+            }
         }
         // TODO: User friendly guidence...
         _ => panic!["Invalid arguments"],
