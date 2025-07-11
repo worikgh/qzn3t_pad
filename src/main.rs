@@ -82,7 +82,8 @@ fn get_midi_port<T: midir::MidiIO>(midi_io: &T, keyword: &str) -> Option<T::Port
 /// It uses the passed parameter `name` to create a port: LpxCtl:<name>
 fn get_midi_out(name: &str) -> Result<MidiOutputConnection, Box<dyn Error>> {
     let midi_output = MidiOutput::new("LpxCtl")?;
-    let port = get_midi_port(&midi_output, "Launchpad X LPX MIDI In").unwrap(); //.ok_or(Err("Failed guess port".into())?);
+    let port = get_midi_port(&midi_output, "Launchpad X LPX MIDI In")
+        .ok_or("Failed to get MIDI port -> PAD")?;
     Ok(midi_output.connect(&port, name)?)
 }
 
@@ -111,17 +112,6 @@ fn get_all_midi_input_ports() -> Result<Vec<String>, Box<dyn Error>> {
     for p in ports {
         result.push(input.port_name(&p)?);
     }
-    // let result: Vec<String> = ports
-    //     .iter()
-    //     .map(|p| {
-    //         let name = input.port_name(p).expect("Getting port name");
-    //         Ok(name)
-    //     })
-    //     .collect();
-    // ports
-    //     .iter()
-    //     .map(|p| input.port_name(p))
-    //     .collect::<Vec<String>>()?
     Ok(result)
 }
 fn get_all_midi_output_ports() -> Result<Vec<String>, Box<dyn Error>> {
@@ -135,7 +125,6 @@ fn get_all_midi_output_ports() -> Result<Vec<String>, Box<dyn Error>> {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // The only argument is a configuration file
     let args: Vec<String> = env::args().collect();
 
     // Initialise the collection of `Section` from the file. (See `section.rs`)
