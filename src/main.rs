@@ -14,10 +14,10 @@ mod section;
 use crate::midir::os::unix::VirtualOutput;
 use crate::section::default_sections;
 use crate::section::Section;
+use clap::{Arg, Command};
 use midir::MidiInputPort;
 use midir::MidiOutputPort;
 use midir::{MidiInput, MidiInputConnection, MidiOutput, MidiOutputConnection};
-use std::env;
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
@@ -80,10 +80,9 @@ fn get_midi_port<T: midir::MidiIO>(midi_io: &T, keyword: &str) -> Option<T::Port
 
 /// Create an output MIDI port to the LPX.
 /// It uses the passed parameter `name` to create a port: LpxCtl:<name>
-fn get_midi_out(name: &str) -> Result<MidiOutputConnection, Box<dyn Error>> {
+fn get_midi_out(name: &str, p_name: &str) -> Result<MidiOutputConnection, Box<dyn Error>> {
     let midi_output = MidiOutput::new("LpxCtl")?;
-    let port = get_midi_port(&midi_output, "Launchpad X LPX MIDI In")
-        .ok_or("Failed to get MIDI port -> PAD")?;
+    let port = get_midi_port(&midi_output, p_name).ok_or("Failed to get MIDI port -> PAD")?;
     Ok(midi_output.connect(&port, name)?)
 }
 
@@ -94,10 +93,11 @@ fn get_midi_out(name: &str) -> Result<MidiOutputConnection, Box<dyn Error>> {
 /// `tx` is the channel
 fn get_midi_in(
     name: &str,
+    p_name: &str,
     f: impl FnMut(u64, &[u8], &mut Sender<[u8; 3]>) + Send + 'static,
     tx: Sender<[u8; 3]>,
 ) -> Result<MidiInputConnection<Sender<[u8; 3]>>, Box<dyn Error>> {
-    let midi_input = MidiInput::new("LpxCtl")?;
+    let midi_input = MidiInput::new(p_name)?;
     let port = get_midi_port(&midi_input, "Launchpad X LPX MIDI In").unwrap();
     //.ok_or(Err("Failed guess port".into())?);
     let result = midi_input.connect(&port, name, f, tx)?;
@@ -125,38 +125,66 @@ fn get_all_midi_output_ports() -> Result<Vec<String>, Box<dyn Error>> {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let args: Vec<String> = env::args().collect();
+    let matches = Command::new("qzn3t_pad")
+        .arg(
+            Arg::new("list")
+                .short('l')
+                .long("list")
+                .help("List available configurations")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("config")
+                .short('c')
+                .long("config")
+                .help("Path to configuration file")
+                .value_name("FILE")
+                .required(false),
+        )
+        .arg(
+            Arg::new("pad_midi_out")
+                .short('o')
+                .long("pad_midi_out")
+                .help("Send MIDI to pad on this port")
+                .value_name("MIDI_OUT")
+                .default_value("Launchpad X LPX MIDI In")
+                .required(false),
+        )
+        .arg(
+            Arg::new("pad_midi_in")
+                .short('i')
+                .long("pad_midi_in")
+                .help("Get MIDI from pad on this port")
+                .value_name("MIDI_IN")
+                .default_value("Launchpad X LPX MIDI In")
+                .required(false),
+        )
+        .get_matches();
+
+    if *matches.get_one::<bool>("list").unwrap() {
+        println!("Input ports:");
+        let ports = get_all_midi_input_ports()?;
+        for port_name in ports {
+            println!("\t{port_name}");
+        }
+        println!("Output ports:");
+        let ports = get_all_midi_output_ports()?;
+        for port_name in ports {
+            println!("\t{port_name}");
+        }
+        exit(0);
+    }
+
+    let midi_input = matches.get_one::<String>("pad_midi_in").unwrap();
+    println!("MIDI input: {}", midi_input);
+    let midi_output = matches.get_one::<String>("pad_midi_out").unwrap();
+    println!("MIDI output: {}", midi_output);
 
     // Initialise the collection of `Section` from the file. (See `section.rs`)
-    let sections: Vec<Section> = match args.len() {
-        1 =>
-        // No arguments
-        {
-            default_sections()
-        }
-        2 =>
-        // one argument
-        {
-            let arg = args[1].as_str();
-            match arg {
-                "--list" | "-l" => {
-                    println!("Input ports:");
-                    let ports = get_all_midi_input_ports()?;
-                    for port_name in ports {
-                        println!("\t{port_name}");
-                    }
-                    println!("Output ports:");
-                    let ports = get_all_midi_output_ports()?;
-                    for port_name in ports {
-                        println!("\t{port_name}");
-                    }
-                    exit(0)
-                }
-                _ => load_sections(args[1].as_str()).expect("Failed to load sections"),
-            }
-        }
-        // TODO: User friendly guidence...
-        _ => panic!["Invalid arguments"],
+    let sections: Vec<Section> = if let Some(cfg_file_name) = matches.get_one::<String>("config") {
+        load_sections(cfg_file_name).expect("Failed to load sections")
+    } else {
+        default_sections()
     };
 
     // The channel to send MIDI messages, received from the LPX in the
@@ -174,10 +202,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     };
     // The port stays open as long as `_in` is in scope
-    let _in = get_midi_in("read_input", f, tx.clone())?;
+    let _in = get_midi_in("read_input", midi_output.as_str(), f, tx.clone())?;
 
     // Create an output port to the LPX for sending it colour.
-    let mut colour_port: MidiOutputConnection = get_midi_out("colour_port")?;
+    let mut colour_port: MidiOutputConnection = get_midi_out("colour_port", midi_input.as_str())?;
 
     // Selecting Layouts (page 7 programmers manual).  127 => "Programmer Mode"
     let msg: [u8; 9] = [240, 0, 32, 41, 2, 12, 0, 127, 247];
