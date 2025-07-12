@@ -82,7 +82,8 @@ fn get_midi_port<T: midir::MidiIO>(midi_io: &T, keyword: &str) -> Option<T::Port
 /// It uses the passed parameter `name` to create a port: LpxCtl:<name>
 fn get_midi_out(name: &str, p_name: &str) -> Result<MidiOutputConnection, Box<dyn Error>> {
     let midi_output = MidiOutput::new("LpxCtl")?;
-    let port = get_midi_port(&midi_output, p_name).ok_or("Failed to get MIDI port -> PAD")?;
+    let port = get_midi_port(&midi_output, p_name)
+        .ok_or(format!["Failed to get MIDI port {p_name} -> PAD"])?;
     Ok(midi_output.connect(&port, name)?)
 }
 
@@ -98,7 +99,10 @@ fn get_midi_in(
     tx: Sender<[u8; 3]>,
 ) -> Result<MidiInputConnection<Sender<[u8; 3]>>, Box<dyn Error>> {
     let midi_input = MidiInput::new(p_name)?;
-    let port = get_midi_port(&midi_input, "Launchpad X LPX MIDI In").unwrap();
+    let port = match get_midi_port(&midi_input, p_name) {
+        Some(p) => p,
+        None => panic!("Failed to find port: {p_name} in get_midi_in"),
+    };
     //.ok_or(Err("Failed guess port".into())?);
     let result = midi_input.connect(&port, name, f, tx)?;
     Ok(result)
