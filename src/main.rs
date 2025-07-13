@@ -68,9 +68,10 @@ fn get_midi_port<T: midir::MidiIO>(midi_io: &T, keyword: &str) -> Option<T::Port
             Ok(name) => name,
             Err(_) => continue,
         };
+        eprintln!("DBG get_midi_port(midi_io, {keyword}) name: {name}");
 
         if name.contains(keyword) {
-            eprintln!("Guessing port from keyword: {keyword} name: {name}");
+            eprintln!("DBG get_midi_port(midi_io, {keyword}) from keyword: {keyword} name: {name}");
             return Some(port);
         }
     }
@@ -180,8 +181,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let midi_input = matches.get_one::<String>("pad_midi_in").unwrap();
-    println!("MIDI input: {}", midi_input);
     let midi_output = matches.get_one::<String>("pad_midi_out").unwrap();
+
+    println!("MIDI  input: {}", midi_input);
     println!("MIDI output: {}", midi_output);
 
     // Initialise the collection of `Section` from the file. (See `section.rs`)
