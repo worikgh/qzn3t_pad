@@ -140,28 +140,19 @@ sub get_colour($) {
 
 # Output the JSON on STDOUT
 {
-    my $tab = '    ';
-    print "[\n";
-    my @json = ();
-    foreach my $midi (keys %midi_pads){
-	my $json = '';
-	$json .=  "\n$tab\{\n";
-	$json .=  "$tab$tab\"pads\": [".join(",", @{$midi_pads{$midi}})."],\n";
+    use JSON qw(to_json);
+
+    my @output;
+    foreach my $midi (keys %midi_pads) {
 	my $colour_name = get_colour($midi);
-	my $main_colour;
-	if(defined($colour_name) ){
-	    $main_colour = $colour_map{$colour_name};
-	}else{
-	    $main_colour = $colour_map{$default_colour};
-	}
-	$json .=  "$tab$tab\"main_colour\":$main_colour,\n";
-	$json .=  "$tab$tab\"active_colour\":$colour_map{$active_colour},\n";
-	$json .= "\"midi_note\":$midi\n";
-	$json .=  "$tab\}";
-	push(@json, $json);
+	push @output, {
+	    pads => $midi_pads{$midi},
+	    main_colour => $colour_map{$colour_name // $default_colour},
+	    active_colour => $colour_map{$active_colour},
+	    midi_note => $midi
+	};
     }
-    print join(",", @json)."\n";
-    print "]\n";
+    print to_json(\@output, {pretty => 1});    
 }
 exit;
 # Proof
