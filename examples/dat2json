@@ -1,0 +1,174 @@
+#!/usr/bin/perl -w
+use strict;
+
+## The new style of meta configuration
+my $file_name = shift or die "Pass configuration file name";
+open(my $fh, $file_name) or die"$!: Cannot read $file_name";
+
+# Remove comments, trim white space 
+my @lines =  map{s/\s*$//; s/\#.*$//; $_}  <$fh>;
+
+## Inputs.  Structures build from data in configuration file
+
+## Colours:
+## Colours are 3-element arrays, RGB, with 7-bit values 0-127
+## Map names to tripples: 'blue' => [0, 127, 0]
+my %colour_map = ();
+## For each colour map it to pad ids.  (Pad IDs of form: XY where X
+## and Y in 1..=8: 'green' => [11, 22, 32, 41]
+my $active_colour;
+my $default_colour;
+my %colours = ();
+# Keys: MIDI, value: ARRAY pads
+my %midi_pads = ();
+
+
+my $x_idx;
+my $y_idx;
+
+# For all pads that are not default 
+my %colour_pads = (); 
+
+## Each JSON object in the array output is for one MIDI note.  The
+## keys to this hash are MIDI notes (integers) and the value is a HASH
+## with keys/values 'pads'/ARRAY of pad ids, 'main_colour' and
+## 'active_colour' named colours
+my %note_records = ();
+
+# Initialise to pad indexes
+my @midi_notes = (
+    [81, 82, 83, 84, 85, 86, 87, 88],
+    [71, 72, 73, 74, 75, 76, 77, 78],
+    [61, 62, 63, 64, 65, 66, 67, 68],
+    [51, 52, 53, 54, 55, 56, 57, 58],
+    [41, 42, 43, 44, 45, 46, 47, 48],
+    [31, 32, 33, 34, 35, 36, 37, 38],
+    [21, 22, 23, 24, 25, 26, 27, 28],
+    [11, 12, 13, 14, 15, 16, 17, 18]
+    );
+
+## Initialise %midi_pads
+{
+    my $state = 'start';
+    my $x = 8;
+    foreach my $line (@lines){  
+	if($state eq 'start' and $line eq 'MIDI notes'){
+	    $state = 'note';
+	    next;
+	}elsif($state eq 'note'){
+	    if( $line eq ''){
+		$x == 0 or die "End of notes and x: $x";
+		last;
+	    }
+	    my @notes = split(/ /, $line);
+	    scalar(@notes) == 8 or die "$line";
+	    my $y = 1;
+	    foreach my $note (@notes){
+		my $pad = "$x$y";
+		$y++;
+		defined $midi_pads{$note} or  $midi_pads{$note} = [];
+		push(@{$midi_pads{$note}}, $pad);
+	    }
+	    $x--;
+	}
+    }
+}
+
+# Build the colour map 
+{
+    my $state = 'start';
+    foreach my $line (@lines){  
+	if($state eq 'start' and $line eq 'Colour map'){
+	    $state = 'colour_map';
+	    next;
+	}elsif($state eq 'colour_map'){
+	    if( $line eq ''){
+		last;
+	    }
+	    my ($colour_name, $colour_def) = $line =~ /^(\S+) (.+)/;
+
+	    (!defined($colour_name) or !defined($colour_def)) and
+		die "Colour map: Invalid \$line: $line";
+	    defined($colour_map{$colour_name}) and
+		die "Colour map: \$colour_name $colour_name defined twice";
+	    $colour_map{$colour_name} = $colour_def;
+	}
+    }
+}
+
+# Get the colours for each note
+# This assumes that pads with same MIDI  have same colour
+{
+    my $state = 'start';
+    foreach my $line (@lines){  
+	if($state eq 'start' and $line eq 'Colours'){
+	    $state = 'colours';
+	    next;
+	}elsif($state eq 'colours'){
+	    if( $line eq ''){
+		last;
+	    }
+	    my ($colour_name, $pads_def) = $line =~ /^(\S+) (.+)/;
+	    (defined($colour_name) and defined($pads_def)) or
+		die "Colours: Bad \$line: $line";
+	    $pads_def eq 'default' and
+		$default_colour = $colour_name and next;
+	    $pads_def eq 'active' and
+		$active_colour = $colour_name and next;
+
+	    
+
+	    my $pads = eval $pads_def;
+	    my @pads;
+	    (defined($pads) and @pads = @$pads) or
+		die "Colours ($line): Bad pads definition.  $pads_def";
+	    defined($colours{$colour_name}) and
+		die "Colours: \$colour_name $colour_name not unique";
+	    $colours{$colour_name} = \@pads;
+	}
+    }
+}
+
+sub get_colour($) {
+    my $midi = shift or die;
+    foreach my $c (keys %colours){
+	grep {/$midi/} @{$colours{$c}} and return $c;
+    }
+    undef;
+}
+	
+
+# Output the JSON on STDOUT
+{
+    my $tab = '    ';
+    print "[\n";
+    my @json = ();
+    foreach my $midi (keys %midi_pads){
+	my $json = '';
+	$json .=  "\n$tab\{\n";
+	$json .=  "$tab$tab\"pads\": [".join(",", @{$midi_pads{$midi}})."],\n";
+	my $colour_name = get_colour($midi);
+	my $main_colour;
+	if(defined($colour_name) ){
+	    $main_colour = $colour_map{$colour_name};
+	}else{
+	    $main_colour = $colour_map{$default_colour};
+	}
+	$json .=  "$tab$tab\"main_colour\":$main_colour,\n";
+	$json .=  "$tab$tab\"active_colour\":$colour_map{$active_colour},\n";
+	$json .= "\"midi_note\":$midi\n";
+	$json .=  "$tab\}";
+	push(@json, $json);
+    }
+    print join(",", @json)."\n";
+    print "]\n";
+}
+exit;
+# Proof
+print "MIDI -> [pads]\n"; 
+print join("\n", map{"$_ => ".join(", ", @{$midi_pads{$_}})} keys(%midi_pads))."\n";
+print "Colour map:\n";
+print join("\n", map{"$_ => $colour_map{$_}"} sort keys %colour_map)."\n";
+print "Colours:\n";
+print "Active colour: $active_colour\nDefault colour: $default_colour\n";
+print join("\n", map{"$_ => ".join(",", @{$colours{$_}})} sort keys %colours)."\n";
