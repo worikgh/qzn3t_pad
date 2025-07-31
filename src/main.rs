@@ -12,8 +12,8 @@ extern crate serde;
 mod section;
 
 use crate::midir::os::unix::VirtualOutput;
-use crate::section::default_sections;
 use crate::section::Section;
+use crate::section::default_sections;
 use clap::{Arg, Command};
 use midir::MidiInputPort;
 use midir::MidiOutputPort;
