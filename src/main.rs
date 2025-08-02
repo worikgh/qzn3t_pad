@@ -68,10 +68,12 @@ fn get_midi_port<T: midir::MidiIO>(midi_io: &T, keyword: &str) -> Option<T::Port
             Ok(name) => name,
             Err(_) => continue,
         };
-        eprintln!("DBG qzn3t_pad: get_midi_port(midi_io, {keyword}) name: {name}");
+        // eprintln!("DBG qzn3t_pad: get_midi_port(midi_io, {keyword}) name: {name}");
 
         if name.contains(keyword) {
-            eprintln!("DBG get_midi_port(midi_io, {keyword}) from keyword: {keyword} name: {name}");
+            eprintln!(
+                "DBG qzn3t_pad: get_midi_port(midi_io, {keyword}) from keyword: {keyword} name: {name}"
+            );
             return Some(port);
         }
     }
