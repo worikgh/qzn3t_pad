@@ -68,7 +68,7 @@ fn get_midi_port<T: midir::MidiIO>(midi_io: &T, keyword: &str) -> Option<T::Port
             Ok(name) => name,
             Err(_) => continue,
         };
-        eprintln!("DBG get_midi_port(midi_io, {keyword}) name: {name}");
+        eprintln!("DBG qzn3t_pad: get_midi_port(midi_io, {keyword}) name: {name}");
 
         if name.contains(keyword) {
             eprintln!("DBG get_midi_port(midi_io, {keyword}) from keyword: {keyword} name: {name}");
@@ -217,7 +217,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let msg: [u8; 9] = [240, 0, 32, 41, 2, 12, 0, 127, 247];
     match colour_port.send(&msg) {
         Ok(()) => (),
-        Err(err) => eprintln!("{err}: Failed to send msg to LPX: {msg:?}"),
+        Err(err) => eprintln!("Error qzn3t_pad: {err}: Failed to send msg to LPX: {msg:?}"),
     };
 
     let make_colour = |section: &Section, colour: [u8; 3]| -> Vec<u8> {
@@ -243,7 +243,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let colour = make_colour(section, section.main_colour);
         match colour_port.send(&colour) {
             Ok(()) => (),
-            Err(err) => eprintln!("{err}: Cannot send colour: {colour:?}"),
+            Err(err) => eprintln!("Error qzn3t_pad: {err}: Cannot send colour: {colour:?}"),
         };
     }
 
@@ -259,8 +259,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let midi_out: MidiOutput = MidiOutput::new("LpxCtlCtl")?;
     let port_name = "port";
     let mut midi_ctl_out_port: MidiOutputConnection = midi_out.create_virtual(port_name)?;
-    eprintln!("2 Virtual MIDI Output port 'LpxCtlNote:{port_name}' is open");
-    eprintln!("3 Virtual MIDI Output port 'LpxCtlCtl:{port_name}' is open");
+    eprintln!("DBG qzn3t_pad: Virtual MIDI Output port 'LpxCtlNote:{port_name}' is open");
+    eprintln!("DBG qzn3t_pad: Virtual MIDI Output port 'LpxCtlCtl:{port_name}' is open");
 
     // Main loop.
     loop {
@@ -286,7 +286,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let velocity = message[2];
                 let message: [u8; 3] = [message[0], section.midi_note, velocity];
                 eprintln!(
-                    "SEND NoteOn: Type: {:2x} Note: {:2x} Velocity: {:2x}",
+                    "DBG qzn3t_pad: SEND NoteOn: Type: {:2x} Note: {:2x} Velocity: {:2x}",
                     message[0], message[1], message[2]
                 );
                 midi_note_out_port.send(&message)?;
@@ -307,7 +307,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         } else if message[0] == 176 {
             // A control signal
             eprintln!(
-                "SEND Ctl: {:2x} {:2x} {:2x}",
+                "DBG qzn3t_pad: SEND Ctl: {:2x} {:2x} {:2x}",
                 message[0], message[1], message[2]
             );
             midi_ctl_out_port.send(&message).unwrap();
