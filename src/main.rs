@@ -270,10 +270,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             Ok(m) => m,
             Err(err) => panic!("{}", err),
         };
-        eprint!(
-            "MIDI: {:2x} {:2x} {:2x}.  ",
-            message[0], message[1], message[2]
-        );
         if message[0] == 144 {
             // All MIDI notes from LPX start with 144, for initial
             // noteon and noteoff
