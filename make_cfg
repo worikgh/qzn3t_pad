@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 use strict;
 
-# Make configuration files for lpx-ctl.
+# Make configuration files for `qzn3t_pad`
 #
 # Only argument is a configuration file.
 # The configuration file consists of two parts:
