@@ -1,6 +1,5 @@
-use std::collections::HashSet;
-// use crate::lpx_ctl_error::LpxCtlError;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 /// A `Section` is a collection of pads on a LPX that is grouped".
 /// All the pads in it are one colour and emit the same note
 #[allow(unused)]

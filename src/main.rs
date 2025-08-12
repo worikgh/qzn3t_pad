@@ -18,6 +18,8 @@ use clap::{Arg, Command};
 use midir::MidiInputPort;
 use midir::MidiOutputPort;
 use midir::{MidiInput, MidiInputConnection, MidiOutput, MidiOutputConnection};
+use serde_json::Value;
+use std::collections::HashSet;
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
@@ -26,6 +28,15 @@ use std::result::Result;
 use std::sync::mpsc::{self, Receiver, Sender};
 
 /// Initialise a vector of `Section` from a file.
+/// It is either a list of `Section` in JSON or it is in "linear"
+/// style.
+/// One record (for a `Section`) per line
+/// Comma separated
+/// Fields:
+/// 1. Sapce separated list of pads in the section
+/// 2. Main colour in hex: #RRGGBB
+/// 3. Active colour in hex: #RRGGBB
+/// 4. MIDI not in decimal or 0x hex
 fn load_sections(filename: &str) -> Option<Vec<Section>> {
     let mut file = match File::open(filename) {
         Ok(f) => f,
@@ -38,8 +49,81 @@ fn load_sections(filename: &str) -> Option<Vec<Section>> {
     };
 
     // Create the sections from the file
-    let mut sections: Vec<Section> = Section::parse_json(&content).expect("Failed parsing JSON");
-    // If there is a default section with no pads put all unincluded pads in it
+    let input_is_json = serde_json::from_str::<Value>(&content).is_ok();
+    let mut sections: Vec<Section> = if input_is_json {
+        match Section::parse_json(&content) {
+            Some(v) => v,
+            None => panic!("Error qzn3t_pad: Invalid JSON configuraton data in {filename}"),
+        }
+    } else {
+        let lines: Vec<String> = content.lines().map(|line| line.to_string()).collect();
+        let result: Vec<Section> = lines
+            .iter()
+            .filter(|&l| !l.trim().starts_with('#'))
+            .map(|l| {
+                let records: Vec<String> = l.split(',').map(|s| s.trim().to_string()).collect();
+		// Error checking
+		if records.len() != 4 {
+		    panic!("Error qzn3t_pad: Invalid line in configuration record.  Wrong number of fields: {}  Line: {l}", records.len());
+		}
+                let pads = records[0].split_whitespace().map(|s| {
+		    let valid_pad = |p:u8| -> bool {
+			let row = p % 10 ;
+			let col = p / 10;
+			row > 0 && row < 9 && col > 0 && col < 9
+		    };
+		    if let Ok(s) = s.parse::<u8>() && valid_pad(s){
+			s
+		    }else{
+			panic!("Error qzn3t_pad: Invalid line {l}. Pad is invalid: {s}")
+		    }
+		}).collect();
+		let make_colour = |colour_str:&str, name:&str| -> [u8;3] {
+		    if colour_str.len() != 7 {
+			panic!("Error qzn3t_pad: Invalid line. Colour: {name} is invalid: {}", colour_str);
+		    }
+		    let hex_colour = &colour_str[1..];
+
+		    let rgb: Result<Vec<u8>, _> = hex_colour.as_bytes().chunks(2).map(|chunk| {
+			let hex = std::str::from_utf8(chunk).unwrap();
+			u8::from_str_radix(hex, 16)
+		    }).collect();
+
+		    match rgb {
+			Ok(values) if values.len() == 3 => [values[0], values[1], values[2]],
+			_ => panic!("Error qzn3t_pad: Invalid line. Colour: {name} is invalid: {}", colour_str),
+		    }
+		};
+		let main_colour: [u8; 3] = make_colour(&records[1], "main_colour");
+		let active_colour: [u8; 3] = make_colour(&records[2], "active_colour");
+		let midi_note  =  &records[3];
+		let midi_note:u8 = match midi_note.parse::<u8>() {
+		    Ok(u) => u,
+		    Err(e) => panic!("Error qzn3t_pad: Invalid line. Midid note: {midi_note} is invalid: {e}",),
+		};
+
+                Section::new(pads, main_colour, active_colour, midi_note)
+            })
+            .collect();
+        result
+    };
+    // If there is a default section with no pads put all un-included pads in it
+    if sections.iter().filter(|s| s.pads.len() == 0).count() > 1 {
+        panic!(
+            "Error qzn3t_pad: Invalid sections in {filename}.  There must be at most one default section"
+        );
+    }
+
+    // Check each pad occurs at most once
+    let mut pad_check: HashSet<u8> = HashSet::new();
+    for s in sections.iter() {
+        for p in s.pads.iter() {
+            if pad_check.contains(p) {
+                panic!["Error qzn3t_pad: Invalid sections in {filename}. Repeated pad: {p}"];
+            }
+            pad_check.insert(*p);
+        }
+    }
     if let Some(index) = sections.iter().position(|x| x.pads.is_empty()) {
         // Collect all pads mentioned so far
         let mut pads_here: Vec<u8> = sections.iter().flat_map(|x| x.pads.clone()).collect();
