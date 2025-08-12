@@ -169,15 +169,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         .get_matches();
 
     if *matches.get_one::<bool>("list").unwrap() {
-        println!("Input ports:");
+        eprintln!("DBG qzn3t_pad: Input ports:");
         let ports = get_all_midi_input_ports()?;
         for port_name in ports {
-            println!("\t{port_name}");
+            eprintln!("\t{port_name}");
         }
-        println!("Output ports:");
+        eprintln!("DBG qzn3t_pad: Output ports:");
         let ports = get_all_midi_output_ports()?;
         for port_name in ports {
-            println!("\t{port_name}");
+            eprintln!("\t{port_name}");
         }
         exit(0);
     }
@@ -185,8 +185,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let midi_input = matches.get_one::<String>("pad_midi_in").unwrap();
     let midi_output = matches.get_one::<String>("pad_midi_out").unwrap();
 
-    println!("MIDI  input: {}", midi_input);
-    println!("MIDI output: {}", midi_output);
+    eprintln!("DBG qzn3t_pad: MIDI  input: {}", midi_input);
+    eprintln!("DBG qzn3t_pad: MIDI output: {}", midi_output);
 
     // Initialise the collection of `Section` from the file. (See `section.rs`)
     let sections: Vec<Section> = if let Some(cfg_file_name) = matches.get_one::<String>("config") {

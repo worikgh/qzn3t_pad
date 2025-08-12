@@ -65,7 +65,7 @@ impl Section {
         let a = if default_section_count < 2 {
             true
         } else {
-            eprintln!("Too many ({default_section_count}) default sections");
+            eprintln!("Error qzn3t_pad: Too many ({default_section_count}) default sections");
             return false;
         };
         // No intersections
@@ -74,7 +74,7 @@ impl Section {
             for j in (i + 1)..sections.len() {
                 if sections[i].intersect(&sections[j]) {
                     eprintln!(
-                        "section intersection: Sections:\n\t{}\n\t{}",
+                        "DBG qzn3t_pad: section intersection: Sections:\n\t{}\n\t{}",
                         sections[i], sections[j]
                     );
                     return false;
@@ -95,7 +95,7 @@ impl Section {
             if hs.len() == v.len() && v.len() == 64 {
                 true
             } else {
-                eprintln!("There are some pads in more than one section");
+                eprintln!("Error qzn3t_pad: There are some pads in more than one section");
                 false
             }
         };
