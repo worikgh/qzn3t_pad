@@ -398,3 +398,183 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Ok(())
 }
 //
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn test_load_sections_from_json() {
+        let json_content = r#"
+        [
+            {
+                "pads": [11, 12, 13],
+                "main_colour": [255, 0, 0],
+                "active_colour": [0, 255, 0],
+                "midi_note": 60
+            },
+            {
+                "pads": [],
+                "main_colour": [0, 0, 0],
+                "active_colour": [255, 255, 255],
+                "midi_note": 0
+            }
+        ]
+        "#;
+
+        let mut file = NamedTempFile::new().unwrap();
+        write!(file, "{}", json_content).unwrap();
+        let path = file.path().to_str().unwrap();
+
+        let sections = load_sections(path).unwrap();
+        assert_eq!(sections.len(), 2);
+        assert_eq!(sections[0].pads, vec![11, 12, 13]);
+        assert_eq!(sections[1].pads.len(), 64 - 3);
+    }
+
+    #[test]
+    fn test_load_sections_from_csv_like() {
+        let csv_content = "11 12 13, #ff0000, #00ff00, 60\n21 22 23, #0000ff, #ffff00, 61";
+
+        let mut file = NamedTempFile::new().unwrap();
+        write!(file, "{}", csv_content).unwrap();
+        let path = file.path().to_str().unwrap();
+
+        let sections = load_sections(path).unwrap();
+        assert_eq!(sections.len(), 2);
+        assert_eq!(sections[0].pads, vec![11, 12, 13]);
+        assert_eq!(sections[0].main_colour, [255, 0, 0]);
+        assert_eq!(sections[1].pads, vec![21, 22, 23]);
+    }
+    #[test]
+    fn test_load_sections_from_csv_like_with_default() {
+        let csv_content = "11 12 13, #ff0000, #00ff00, 60\n21 22 23, #0000ff, #ffff00, 61\n, #ff00ff, #ffffff, 62";
+
+        let mut file = NamedTempFile::new().unwrap();
+        write!(file, "{}", csv_content).unwrap();
+        let path = file.path().to_str().unwrap();
+
+        let sections = load_sections(path).unwrap();
+        assert_eq!(sections.len(), 3);
+        assert_eq!(sections[0].pads, vec![11, 12, 13]);
+        assert_eq!(sections[0].main_colour, [255, 0, 0]);
+        assert_eq!(sections[1].pads, vec![21, 22, 23]);
+        assert_eq!(sections[2].pads.len(), 64 - 6);
+        assert_eq!(sections[2].main_colour, [0xff, 0, 0xff]);
+    }
+
+    #[test]
+    fn test_load_sections_csv_comments() {
+        let csv_content = "11  12 13, #ff0000, #00ff00, 60\n # This is a comment line\n21 22 23, #0000ff, #ffff00, 61";
+
+        let mut file = NamedTempFile::new().unwrap();
+        write!(file, "{}", csv_content).unwrap();
+        let path = file.path().to_str().unwrap();
+
+        let sections = load_sections(path).unwrap();
+        assert_eq!(sections.len(), 2);
+        assert_eq!(sections[0].pads, vec![11, 12, 13]);
+        assert_eq!(sections[0].main_colour, [255, 0, 0]);
+        assert_eq!(sections[1].pads, vec![21, 22, 23]);
+    }
+
+    #[test]
+    fn test_load_sections_with_default_section() {
+        let content = r#"
+        [
+            {
+                "pads": [11, 12],
+                "main_colour": [255, 0, 0],
+                "active_colour": [0, 255, 0],
+                "midi_note": 60
+            },
+            {
+                "pads": [],
+                "main_colour": [0, 0, 0],
+                "active_colour": [255, 255, 255],
+                "midi_note": 0
+            }
+        ]
+        "#;
+
+        let mut file = NamedTempFile::new().unwrap();
+        write!(file, "{}", content).unwrap();
+        let path = file.path().to_str().unwrap();
+
+        let sections = load_sections(path).unwrap();
+        assert!(sections[1].pads.len() > 2); // Default section should have been filled
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid line in configuration record")]
+    fn test_invalid_csv_line() {
+        let content = "11 12, #ff0000, #00ff00"; // Missing midi_note
+
+        let mut file = NamedTempFile::new().unwrap();
+        write!(file, "{}", content).unwrap();
+        let path = file.path().to_str().unwrap();
+
+        load_sections(path).unwrap();
+    }
+    #[test]
+    #[should_panic(expected = "There must be at most one default section")]
+    fn test_invalid_csv_line_more_default() {
+        let content = "11 12, #ff0000, #00ff00, 60\n, #ff0000, #00ffff, 61\n, #ff4e00, #e0ffff, 62";
+
+        let mut file = NamedTempFile::new().unwrap();
+        write!(file, "{}", content).unwrap();
+        let path = file.path().to_str().unwrap();
+
+        load_sections(path).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "Repeated pad")]
+    fn test_invalid_csv_line_repeat_pads() {
+        let content =
+            "11 12, #ff0000, #00ff00, 60\n11, #ff0000, #00ffff, 61\n, #ff4e00, #e0ffff, 62";
+
+        let mut file = NamedTempFile::new().unwrap();
+        write!(file, "{}", content).unwrap();
+        let path = file.path().to_str().unwrap();
+
+        load_sections(path).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid section")]
+    fn test_invalid_csv_line_repeat_pads_in_section() {
+        let content = "11 12, #ff0000, #00ff00, 60\n31 41 51 31, #ff0000, #00ffff, 61\n, #ff4e00, #e0ffff, 62";
+
+        let mut file = NamedTempFile::new().unwrap();
+        write!(file, "{}", content).unwrap();
+        let path = file.path().to_str().unwrap();
+
+        load_sections(path).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "Colour: main_colour is invalid")]
+    fn test_invalid_color_format() {
+        let content = "11 12, #ff00, #00ff00, 60"; // Invalid color format
+
+        let mut file = NamedTempFile::new().unwrap();
+        write!(file, "{}", content).unwrap();
+        let path = file.path().to_str().unwrap();
+
+        load_sections(path).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "Pad is invalid")]
+    fn test_invalid_pad_number() {
+        let content = "11 99, #ff0000, #00ff00, 60"; // Pad 99 is invalid
+
+        let mut file = NamedTempFile::new().unwrap();
+        write!(file, "{}", content).unwrap();
+        let path = file.path().to_str().unwrap();
+
+        load_sections(path).unwrap();
+    }
+}
