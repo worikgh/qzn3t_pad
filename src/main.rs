@@ -114,6 +114,26 @@ fn load_sections(filename: &str) -> Option<Vec<Section>> {
         );
     }
 
+    // Check all colours are made of tripples in 0..127
+    for s in sections.iter() {
+        let mc = &s.main_colour;
+        for i in mc.iter() {
+            if *i > 127 {
+                panic!(
+                    "Error qzn3t_pad: Invalid main_colour: {mc:?}.  Each component must be in 0..127  Component: {i}"
+                );
+            }
+        }
+        let ac = &s.active_colour;
+        for i in ac.iter() {
+            if *i > 127 {
+                panic!(
+                    "Error qzn3t_pad: Invalid active_colour: {ac:?}.  Each component must be in 0..127  Component: {i}"
+                );
+            }
+        }
+    }
+
     // Check each pad occurs at most once
     let mut pad_check: HashSet<u8> = HashSet::new();
     for s in sections.iter() {
@@ -327,6 +347,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Initialise the colours
     for section in sections.iter() {
         let colour = make_colour(section, section.main_colour);
+        eprintln!("DBG qzn3t: Send colour: {colour:?}");
         match colour_port.send(&colour) {
             Ok(()) => (),
             Err(err) => eprintln!("Error qzn3t_pad: {err}: Cannot send colour: {colour:?}"),
@@ -410,14 +431,14 @@ mod tests {
         [
             {
                 "pads": [11, 12, 13],
-                "main_colour": [255, 0, 0],
-                "active_colour": [0, 255, 0],
+                "main_colour": [127, 0, 0],
+                "active_colour": [0, 127, 0],
                 "midi_note": 60
             },
             {
                 "pads": [],
                 "main_colour": [0, 0, 0],
-                "active_colour": [255, 255, 255],
+                "active_colour": [127, 127, 127],
                 "midi_note": 0
             }
         ]
@@ -435,7 +456,7 @@ mod tests {
 
     #[test]
     fn test_load_sections_from_csv_like() {
-        let csv_content = "11 12 13, #ff0000, #00ff00, 60\n21 22 23, #0000ff, #ffff00, 61";
+        let csv_content = "11 12 13, #7f0000, #007f00, 60\n21 22 23, #00007f, #7f7f00, 61";
 
         let mut file = NamedTempFile::new().unwrap();
         write!(file, "{}", csv_content).unwrap();
@@ -444,12 +465,12 @@ mod tests {
         let sections = load_sections(path).unwrap();
         assert_eq!(sections.len(), 2);
         assert_eq!(sections[0].pads, vec![11, 12, 13]);
-        assert_eq!(sections[0].main_colour, [255, 0, 0]);
+        assert_eq!(sections[0].main_colour, [127, 0, 0]);
         assert_eq!(sections[1].pads, vec![21, 22, 23]);
     }
     #[test]
     fn test_load_sections_from_csv_like_with_default() {
-        let csv_content = "11 12 13, #ff0000, #00ff00, 60\n21 22 23, #0000ff, #ffff00, 61\n, #ff00ff, #ffffff, 62";
+        let csv_content = "11 12 13, #7f0000, #007f00, 60\n21 22 23, #00007f, #7f7f00, 61\n, #7f007f, #7f7f7f, 62";
 
         let mut file = NamedTempFile::new().unwrap();
         write!(file, "{}", csv_content).unwrap();
@@ -458,15 +479,15 @@ mod tests {
         let sections = load_sections(path).unwrap();
         assert_eq!(sections.len(), 3);
         assert_eq!(sections[0].pads, vec![11, 12, 13]);
-        assert_eq!(sections[0].main_colour, [255, 0, 0]);
+        assert_eq!(sections[0].main_colour, [127, 0, 0]);
         assert_eq!(sections[1].pads, vec![21, 22, 23]);
         assert_eq!(sections[2].pads.len(), 64 - 6);
-        assert_eq!(sections[2].main_colour, [0xff, 0, 0xff]);
+        assert_eq!(sections[2].main_colour, [0x7f, 0, 0x7f]);
     }
 
     #[test]
     fn test_load_sections_csv_comments() {
-        let csv_content = "11  12 13, #ff0000, #00ff00, 60\n # This is a comment line\n21 22 23, #0000ff, #ffff00, 61";
+        let csv_content = "11  12 13, #7f0000, #007f00, 60\n # This is a comment line\n21 22 23, #00007f, #7f7f00, 61";
 
         let mut file = NamedTempFile::new().unwrap();
         write!(file, "{}", csv_content).unwrap();
@@ -475,7 +496,7 @@ mod tests {
         let sections = load_sections(path).unwrap();
         assert_eq!(sections.len(), 2);
         assert_eq!(sections[0].pads, vec![11, 12, 13]);
-        assert_eq!(sections[0].main_colour, [255, 0, 0]);
+        assert_eq!(sections[0].main_colour, [127, 0, 0]);
         assert_eq!(sections[1].pads, vec![21, 22, 23]);
     }
 
@@ -485,14 +506,14 @@ mod tests {
         [
             {
                 "pads": [11, 12],
-                "main_colour": [255, 0, 0],
-                "active_colour": [0, 255, 0],
+                "main_colour": [127, 0, 0],
+                "active_colour": [0, 127, 0],
                 "midi_note": 60
             },
             {
                 "pads": [],
                 "main_colour": [0, 0, 0],
-                "active_colour": [255, 255, 255],
+                "active_colour": [127, 127, 127],
                 "midi_note": 0
             }
         ]
@@ -509,7 +530,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Invalid line in configuration record")]
     fn test_invalid_csv_line() {
-        let content = "11 12, #ff0000, #00ff00"; // Missing midi_note
+        let content = "11 12, #7f0000, #007f00"; // Missing midi_note
 
         let mut file = NamedTempFile::new().unwrap();
         write!(file, "{}", content).unwrap();
@@ -520,7 +541,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "There must be at most one default section")]
     fn test_invalid_csv_line_more_default() {
-        let content = "11 12, #ff0000, #00ff00, 60\n, #ff0000, #00ffff, 61\n, #ff4e00, #e0ffff, 62";
+        let content = "11 12, #7f0000, #007f00, 60\n, #7f0000, #007f7f, 61\n, #7f4e00, #e07f7f, 62";
 
         let mut file = NamedTempFile::new().unwrap();
         write!(file, "{}", content).unwrap();
@@ -533,7 +554,7 @@ mod tests {
     #[should_panic(expected = "Repeated pad")]
     fn test_invalid_csv_line_repeat_pads() {
         let content =
-            "11 12, #ff0000, #00ff00, 60\n11, #ff0000, #00ffff, 61\n, #ff4e00, #e0ffff, 62";
+            "11 12, #7f0000, #007f00, 60\n11, #7f0000, #007f7f, 61\n, #7f4e00, #707f7f, 62";
 
         let mut file = NamedTempFile::new().unwrap();
         write!(file, "{}", content).unwrap();
@@ -545,7 +566,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Invalid section")]
     fn test_invalid_csv_line_repeat_pads_in_section() {
-        let content = "11 12, #ff0000, #00ff00, 60\n31 41 51 31, #ff0000, #00ffff, 61\n, #ff4e00, #e0ffff, 62";
+        let content = "11 12, #7f0000, #007f00, 60\n31 41 51 31, #7f0000, #007f7f, 61\n, #7f4e00, #e07f7f, 62";
 
         let mut file = NamedTempFile::new().unwrap();
         write!(file, "{}", content).unwrap();
@@ -557,7 +578,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Colour: main_colour is invalid")]
     fn test_invalid_color_format() {
-        let content = "11 12, #ff00, #00ff00, 60"; // Invalid color format
+        let content = "11 12, #7f00, #007f00, 60"; // Invalid color format
 
         let mut file = NamedTempFile::new().unwrap();
         write!(file, "{}", content).unwrap();
@@ -569,7 +590,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Pad is invalid")]
     fn test_invalid_pad_number() {
-        let content = "11 99, #ff0000, #00ff00, 60"; // Pad 99 is invalid
+        let content = "11 99, #7f0000, #007f00, 60"; // Pad 99 is invalid
 
         let mut file = NamedTempFile::new().unwrap();
         write!(file, "{}", content).unwrap();
